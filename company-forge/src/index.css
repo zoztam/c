@@ -1,0 +1,4 @@
+/* All styles live in App.jsx via the injected STYLES constant */
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; }
+#root { width: 100%; }
