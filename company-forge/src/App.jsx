@@ -1,996 +1,1238 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState } from "react";
 
-/* ============================================================
-   THE COMPANY FORGE — single-file gamified company profile
-   Design tokens · 9 interactive stations · full a11y
-   ============================================================ */
-
-const CYCLES = ["Startup", "Growth", "Maturity", "Renewal"];
+/* ─── Data ─── */
 const INDUSTRIES = [
-  "Food & Beverage", "Technology", "Healthcare",
-  "Finance", "Manufacturing", "Retail",
-  "Energy", "Education", "Real Estate", "Media & Entertainment",
+  { id: "technology",    label: "Technology",    icon: "💻" },
+  { id: "finance",       label: "Finance",       icon: "💰" },
+  { id: "healthcare",    label: "Healthcare",    icon: "🏥" },
+  { id: "manufacturing", label: "Manufacturing", icon: "⚙️" },
+  { id: "agriculture",   label: "Agriculture",   icon: "🌾" },
+  { id: "logistics",     label: "Logistics",     icon: "🚚" },
+  { id: "retail",        label: "Retail",        icon: "🛍️" },
+  { id: "energy",        label: "Energy",        icon: "⚡" },
+  { id: "education",     label: "Education",     icon: "🎓" },
+  { id: "media",         label: "Media",         icon: "🎬" },
 ];
 
-/* ─── INJECTED STYLES ─────────────────────────────────────── */
-const STYLES = `
-:root {
-  --navy-900: #0a0e1a;
-  --navy-800: #121829;
-  --navy-700: #1a2238;
-  --navy-600: #212d4a;
-  --amber-500: #ffb02e;
-  --amber-400: #ffc04d;
-  --amber-300: #ffd07a;
-  --steel-500: #6b7280;
-  --steel-300: #9ca3af;
-  --steel-200: #e5e7eb;
-  --green-500: #10b981;
-  --red-500: #ef4444;
+const REVENUE_TIERS = [
+  { id: "pre-revenue", label: "Pre-revenue",   sub: "Not yet generating",  icon: "⏳" },
+  { id: "startup",     label: "Early stage",   sub: "Under $500K",         icon: "🌱" },
+  { id: "growing",     label: "Growth",        sub: "$500K – $10M",        icon: "📈" },
+  { id: "established", label: "Established",   sub: "$10M – $50M",         icon: "🏢" },
+  { id: "leader",      label: "Market leader", sub: "$50M – $1B",          icon: "🚀" },
+  { id: "enterprise",  label: "Enterprise",    sub: "Over $1B",            icon: "🏆" },
+];
 
-  --space-1: .25rem; --space-2: .5rem; --space-3: .75rem; --space-4: 1rem;
-  --space-6: 1.5rem; --space-8: 2rem; --space-10: 2.5rem; --space-12: 3rem;
+const INCOME_TIERS = [
+  { id: "loss",      label: "Operating at a loss",  color: "#f85149" },
+  { id: "breakeven", label: "Near break-even",      color: "#d29922" },
+  { id: "profit",    label: "Profitable",           color: "#3fb950" },
+  { id: "high",      label: "Highly profitable",    color: "#0ea5e9" },
+];
 
-  --font-display: "Orbitron", system-ui, sans-serif;
-  --font-body: "Inter", system-ui, sans-serif;
+const CYCLES = [
+  { id: "idea",      label: "Idea",      desc: "Concept stage, not yet operating" },
+  { id: "launch",    label: "Launch",    desc: "Early operations, finding product-market fit" },
+  { id: "growth",    label: "Growth",    desc: "Scaling operations and customer base" },
+  { id: "scale",     label: "Scale",     desc: "Rapid expansion, entering new markets" },
+  { id: "mature",    label: "Mature",    desc: "Stable, optimising for efficiency" },
+  { id: "transform", label: "Transform", desc: "Pivoting or reinventing the business" },
+];
 
-  --color-bg:       var(--navy-900);
-  --color-surface:  var(--navy-700);
-  --color-surface2: var(--navy-600);
-  --color-primary:  var(--amber-500);
-  --color-text:     var(--steel-200);
-  --color-text-dim: var(--steel-300);
-  --color-success:  var(--green-500);
-  --color-error:    var(--red-500);
+const TABS = [
+  { id: "identity",   label: "Identity",   steps: [1, 2] },
+  { id: "operations", label: "Operations", steps: [3, 4] },
+  { id: "financial",  label: "Financial",  steps: [5, 6] },
+  { id: "vision",     label: "Vision",     steps: [7, 8, 9] },
+];
 
-  --duration: 400ms;
-  --ease: cubic-bezier(.4, 0, .2, 1);
-  --radius: 16px;
-  --glow: 0 0 24px rgba(255, 176, 46, .45);
-  --glow-sm: 0 0 12px rgba(255, 176, 46, .3);
+const RANDOM_PROFILES = [
+  { companyName: "Al-Kharj Green", industry: "agriculture", city: "Al Kharj", country: "Saudi Arabia", headcount: 48, revenue: "growing", netIncome: "profit", businessCycle: "growth", vision: "Greening Saudi cities with sustainable agriculture.", mission: "Deliver high quality plants and green solutions for homes and businesses." },
+  { companyName: "Nexus Dynamics", industry: "technology",  city: "Dubai",    country: "UAE",          headcount: 220, revenue: "leader",      netIncome: "high",      businessCycle: "scale",    vision: "Become the leading tech powerhouse in the Middle East.",      mission: "Build transformative digital products that empower people and organisations." },
+  { companyName: "Summit Logistics", industry: "logistics", city: "Jeddah",   country: "Saudi Arabia", headcount: 310, revenue: "established", netIncome: "profit",    businessCycle: "mature",   vision: "Seamless movement of goods across the Arabian Peninsula.",   mission: "Deliver reliably, efficiently, and sustainably every time." },
+  { companyName: "Horizon Capital",  industry: "finance",   city: "Abu Dhabi", country: "UAE",         headcount: 85, revenue: "leader",      netIncome: "high",      businessCycle: "scale",    vision: "Empower financial freedom for the next generation.",          mission: "Provide accessible and innovative financial products for everyone." },
+  { companyName: "Medcore Arabia",   industry: "healthcare", city: "Riyadh",   country: "Saudi Arabia", headcount: 160, revenue: "established", netIncome: "profit",   businessCycle: "growth",   vision: "Accessible world-class healthcare across the region.",        mission: "Improve patient outcomes through technology and compassionate care." },
+];
+
+function stepDone(key, val) {
+  if (key === "companyName")   return typeof val === "string" && val.trim().length > 0;
+  if (key === "locations")     return Array.isArray(val) && val.some(l => l.city.trim());
+  if (key === "headcount")     return val > 0;
+  return Boolean(val);
 }
 
-*, *::before, *::after { box-sizing: border-box; }
+function countDone(profile) {
+  const keys = ["companyName","industry","locations","headcount","revenue","netIncome","businessCycle","vision","mission"];
+  return keys.filter(k => stepDone(k, profile[k])).length;
+}
+
+/* ─── Styles ─── */
+const STYLES = `
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:          #0d1117;
+  --surface:     #161b22;
+  --surface2:    #1c2333;
+  --surface3:    #21262d;
+  --border:      rgba(240,246,252,.07);
+  --border-md:   rgba(240,246,252,.12);
+  --accent:      #0ea5e9;
+  --accent-dim:  rgba(14,165,233,.1);
+  --text:        #e6edf3;
+  --text-muted:  #8b949e;
+  --text-dim:    #6e7681;
+  --success:     #3fb950;
+  --warning:     #d29922;
+  --danger:      #f85149;
+  --font:        'Inter', system-ui, -apple-system, sans-serif;
+  --r:           8px;
+  --r-lg:        12px;
+  --dur:         180ms;
+  --ease:        cubic-bezier(.2,0,.38,.9);
+}
+
+html, body { height: 100%; }
 
 body {
-  margin: 0;
-  background: var(--color-bg);
-  color: var(--color-text);
-  font-family: var(--font-body);
-  line-height: 1.6;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* ── Layout ── */
-.forge {
-  max-width: 860px;
-  margin: 0 auto;
-  padding: var(--space-8) var(--space-4);
+/* ── App shell ── */
+.app {
+  display: grid;
+  grid-template-columns: 220px 1fr 280px;
+  min-height: 100vh;
 }
 
-.forge-head {
-  text-align: center;
-  margin-bottom: var(--space-12);
-  padding-top: var(--space-8);
-}
-
-.forge-title {
-  font-family: var(--font-display);
-  font-size: 2.5rem;
-  color: var(--color-primary);
-  text-shadow: var(--glow);
-  margin: 0 0 var(--space-2);
-  letter-spacing: .06em;
-}
-
-.forge-subtitle {
-  color: var(--color-text-dim);
-  font-size: 1rem;
-  margin: 0 0 var(--space-6);
-}
-
-/* ── Progress bar ── */
-.progress-track {
+/* ── Sidebar ── */
+.sidebar {
+  background: var(--surface);
+  border-right: 1px solid var(--border);
   display: flex;
-  gap: 8px;
-  justify-content: center;
-  align-items: center;
-  margin-bottom: var(--space-2);
+  flex-direction: column;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
 }
 
-.prog-dot {
-  width: 28px;
-  height: 6px;
-  border-radius: 3px;
-  background: var(--steel-500);
-  transition: background var(--duration) var(--ease),
-              box-shadow var(--duration) var(--ease);
-  opacity: .4;
-}
-.prog-dot.done {
-  background: var(--color-primary);
-  box-shadow: var(--glow-sm);
-  opacity: 1;
-}
-
-.progress-label {
-  text-align: center;
-  font-size: .875rem;
-  color: var(--color-text-dim);
-  margin-top: var(--space-1);
-}
-
-/* ── Station card ── */
-.station {
-  background: var(--color-surface);
-  border-radius: var(--radius);
-  padding: var(--space-8);
-  margin-bottom: var(--space-8);
-  border: 1px solid rgba(255, 176, 46, .12);
-  animation: rise var(--duration) var(--ease) both;
-  position: relative;
-  overflow: hidden;
-}
-
-.station::before {
-  content: "";
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, var(--amber-500), transparent);
-  opacity: .4;
-}
-
-.station h2 {
-  font-family: var(--font-display);
-  color: var(--color-primary);
-  margin: 0 0 var(--space-6);
-  font-size: 1.25rem;
-  letter-spacing: .05em;
+.sidebar-logo {
+  padding: 20px 20px 16px;
+  border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: 10px;
 }
-
-.station-icon {
+.logo-mark {
   width: 32px;
   height: 32px;
+  background: var(--accent);
   border-radius: 8px;
-  background: rgba(255, 176, 46, .12);
-  border: 1px solid rgba(255, 176, 46, .3);
-  display: inline-flex;
+  display: flex;
   align-items: center;
   justify-content: center;
   font-size: 16px;
   flex-shrink: 0;
 }
+.logo-text { font-size: 13px; font-weight: 600; color: var(--text); letter-spacing: -.01em; }
+.logo-sub  { font-size: 11px; color: var(--text-dim); margin-top: 1px; }
 
-@keyframes rise {
-  from { opacity: 0; transform: translateY(20px); }
-  to   { opacity: 1; transform: none; }
+.sidebar-nav {
+  padding: 16px 12px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
-/* ── Text inputs ── */
-.nameplate, .vision-field, .mission-field {
-  width: 100%;
-  background: var(--navy-800);
-  color: var(--color-text);
-  border: 1px solid var(--steel-500);
-  border-radius: 10px;
-  padding: var(--space-3) var(--space-4);
-  font-size: 1.25rem;
-  font-family: var(--font-body);
-  transition: border-color var(--duration) var(--ease),
-              box-shadow var(--duration) var(--ease);
-  resize: vertical;
-}
-
-.nameplate:focus,
-.vision-field:focus,
-.mission-field:focus {
-  outline: none;
-  border-color: var(--color-primary);
-  box-shadow: var(--glow);
-}
-
-.nameplate::placeholder,
-.vision-field::placeholder,
-.mission-field::placeholder { color: var(--steel-500); }
-
-.vision-field, .mission-field {
-  min-height: 100px;
-  font-size: 1rem;
-}
-
-.nameplate-preview {
-  margin-top: var(--space-3);
-  font-family: var(--font-display);
-  font-size: 1.75rem;
-  color: var(--color-primary);
-  text-shadow: var(--glow-sm);
-  min-height: 2.2rem;
+.nav-section-label {
+  font-size: 10px;
+  font-weight: 600;
   letter-spacing: .06em;
-  text-align: center;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  padding: 8px 8px 6px;
+  margin-top: 8px;
 }
+.nav-section-label:first-child { margin-top: 0; }
 
-/* ── Gear Selector ── */
-.gear-wrapper {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-4);
-}
-
-.gear-outer {
-  position: relative;
-  width: 160px;
-  height: 160px;
-}
-
-.gear-ring {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  border: 3px solid rgba(255, 176, 46, .2);
-  animation: spin-slow 20s linear infinite;
-}
-
-@keyframes spin-slow {
-  to { transform: rotate(360deg); }
-}
-
-.gear-ring-dot {
-  position: absolute;
-  top: 4px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--color-primary);
-  box-shadow: var(--glow-sm);
-}
-
-.gear-dial {
-  position: absolute;
-  inset: 16px;
-  border-radius: 50%;
-  border: 6px solid transparent;
-  border-top-color: var(--color-primary);
-  border-right-color: rgba(255, 176, 46, .4);
-  background: radial-gradient(circle at 40% 35%, var(--navy-700), var(--navy-900));
-  transition: transform var(--duration) var(--ease);
+.nav-item {
   display: flex;
   align-items: center;
-  justify-content: center;
-  font-size: 30px;
-}
-
-.gear-label-box { text-align: center; min-width: 220px; }
-
-.gear-value {
-  font-family: var(--font-display);
-  font-size: 1.25rem;
-  color: var(--color-primary);
-  margin: 0 0 var(--space-2);
-  letter-spacing: .04em;
-  min-height: 1.6em;
-}
-
-.gear-counter {
-  font-size: .875rem;
-  color: var(--color-text-dim);
-  margin: 0 0 var(--space-3);
-}
-
-.gear-btns { display: flex; gap: var(--space-3); justify-content: center; }
-
-/* ── Button ── */
-.btn {
-  background: var(--navy-800);
-  color: var(--color-primary);
-  border: 1px solid var(--color-primary);
-  border-radius: 8px;
-  padding: var(--space-2) var(--space-4);
-  font-size: 1rem;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: var(--r);
   cursor: pointer;
-  transition: background var(--duration) var(--ease),
-              box-shadow var(--duration) var(--ease);
-}
-
-.btn:hover, .btn:focus {
-  background: rgba(255, 176, 46, .1);
-  box-shadow: var(--glow-sm);
-  outline: none;
-}
-
-/* ── Geo Locations ── */
-.loc-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  margin-bottom: var(--space-4);
-}
-
-.loc-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr 80px 80px auto;
-  gap: var(--space-2);
-  align-items: center;
-  background: var(--navy-800);
-  border-radius: 10px;
-  padding: var(--space-3);
-  border: 1px solid rgba(255,176,46,.1);
-}
-
-.loc-input {
-  background: var(--navy-900);
-  color: var(--color-text);
-  border: 1px solid var(--steel-500);
-  border-radius: 6px;
-  padding: var(--space-2) var(--space-3);
-  font-size: .875rem;
-  font-family: var(--font-body);
-  width: 100%;
-  transition: border-color var(--duration) var(--ease);
-}
-
-.loc-input:focus { outline: none; border-color: var(--color-primary); }
-.loc-input::placeholder { color: var(--steel-500); }
-
-.loc-remove {
-  background: transparent;
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
   border: none;
-  color: var(--red-500);
-  font-size: 18px;
+  background: transparent;
+  width: 100%;
+  text-align: left;
+}
+.nav-item:hover { background: var(--surface3); color: var(--text); }
+.nav-item.active { background: var(--accent-dim); color: var(--accent); }
+
+.nav-step-num {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  flex-shrink: 0;
+  opacity: .6;
+}
+.nav-item.done .nav-step-num {
+  background: var(--success);
+  border-color: var(--success);
+  color: #fff;
+  opacity: 1;
+}
+.nav-item.done { color: var(--text-muted); }
+
+.sidebar-footer {
+  padding: 16px 12px;
+  border-top: 1px solid var(--border);
+}
+
+.progress-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+.progress-track {
+  height: 4px;
+  background: var(--surface3);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width .4s var(--ease);
+}
+
+/* ── Main ── */
+.main {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  overflow-y: auto;
+}
+
+.topbar {
+  padding: 20px 28px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  z-index: 50;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0;
+}
+
+.topbar-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.page-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -.02em;
+}
+
+.topbar-actions { display: flex; gap: 8px; }
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: var(--r);
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
-  padding: var(--space-1);
-  border-radius: 4px;
-  line-height: 1;
-  transition: background var(--duration) var(--ease);
+  transition: all var(--dur) var(--ease);
+  border: none;
 }
-.loc-remove:hover { background: rgba(239, 68, 68, .12); }
-.loc-remove:disabled { opacity: .3; cursor: default; }
+.btn-ghost {
+  background: transparent;
+  border: 1px solid var(--border-md);
+  color: var(--text-muted);
+}
+.btn-ghost:hover { background: var(--surface3); color: var(--text); border-color: var(--border-md); }
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+}
+.btn-primary:hover { background: #0284c7; }
+.btn-primary:active { transform: scale(.98); }
 
-/* ── Headcount Slider ── */
-.headcount-widget { display: flex; flex-direction: column; gap: var(--space-4); }
-
-.people-viz {
+/* Tabs */
+.tab-bar {
   display: flex;
-  flex-wrap: wrap;
-  gap: 3px;
-  min-height: 80px;
-  padding: var(--space-3);
-  background: var(--navy-800);
-  border-radius: 10px;
-  border: 1px solid rgba(255,176,46,.1);
-  align-content: flex-start;
+  gap: 0;
+  margin-top: 4px;
 }
-
-.person-icon {
-  font-size: 14px;
-  line-height: 1;
-  animation: pop-in 200ms var(--ease) both;
-}
-
-@keyframes pop-in {
-  from { opacity: 0; transform: scale(.5); }
-  to   { opacity: 1; transform: scale(1); }
-}
-
-.headcount-num {
-  font-family: var(--font-display);
-  font-size: 1.75rem;
-  color: var(--color-primary);
-  text-align: center;
-  margin: 0;
-  text-shadow: var(--glow-sm);
-}
-
-/* ── Gauges ── */
-.gauges {
+.tab {
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  border-bottom: 2px solid transparent;
+  transition: all var(--dur) var(--ease);
   display: flex;
-  gap: var(--space-8);
-  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  position: relative;
+  bottom: -1px;
+}
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+.tab-badge {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--success);
+  font-size: 9px;
+  font-weight: 700;
+  color: #fff;
+  display: flex;
+  align-items: center;
   justify-content: center;
 }
 
-.gauge-cell { flex: 1; min-width: 260px; text-align: center; }
-.gauge-cell h2 { justify-content: center; }
-.gauge-label { color: var(--color-text-dim); font-size: .875rem; margin: 0 0 var(--space-3); }
-.gauge-amount { font-size: .875rem; color: var(--color-text-dim); margin-top: var(--space-2); }
-
-input[type="range"] {
-  width: 100%;
-  accent-color: var(--color-primary);
-  margin-top: var(--space-4);
-  cursor: pointer;
+/* ── Form area ── */
+.form-area {
+  padding: 24px 28px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  flex: 1;
 }
 
-/* ── Business Cycle ── */
-.cycle-outer {
+/* ── Section card ── */
+.section-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+
+.section-head {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.section-num {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--surface2);
+  border: 1.5px solid var(--border-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+.section-card.done .section-num {
+  background: rgba(63,185,80,.15);
+  border-color: rgba(63,185,80,.4);
+  color: var(--success);
+}
+.section-title { font-size: 14px; font-weight: 600; color: var(--text); }
+.section-desc  { font-size: 12px; color: var(--text-dim); margin-left: auto; }
+
+.section-body { padding: 20px; }
+
+/* ── Form elements ── */
+.form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+.form-group:last-child { margin-bottom: 0; }
+
+.form-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: .01em;
+}
+
+.form-input {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border-md);
+  border-radius: var(--r);
+  padding: 9px 12px;
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 14px;
+  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.form-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-dim);
+}
+.form-input::placeholder { color: var(--text-dim); }
+
+.form-input-lg {
+  font-size: 22px;
+  font-weight: 600;
+  padding: 12px 14px;
+  letter-spacing: -.01em;
+}
+
+.form-textarea {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border-md);
+  border-radius: var(--r);
+  padding: 10px 12px;
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.6;
+  resize: vertical;
+  min-height: 90px;
+  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.form-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-dim);
+}
+.form-textarea::placeholder { color: var(--text-dim); }
+
+/* Industry grid */
+.industry-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+
+.industry-opt {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-6);
-}
-
-.cycle-ring { position: relative; width: 200px; height: 200px; }
-.cycle-svg { width: 100%; height: 100%; overflow: visible; }
-.cycle-spoke { cursor: pointer; transition: opacity var(--duration) var(--ease); }
-.cycle-spoke:hover { opacity: .85; }
-
-.cycle-labels {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: var(--space-2);
-}
-
-.cycle-btn {
-  background: var(--navy-800);
-  color: var(--color-text-dim);
-  border: 1px solid var(--steel-500);
-  border-radius: 24px;
-  padding: var(--space-2) var(--space-6);
-  font-size: 1rem;
-  font-family: var(--font-body);
+  gap: 6px;
+  padding: 14px 8px 12px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
   cursor: pointer;
-  transition: all var(--duration) var(--ease);
-}
-
-.cycle-btn:hover, .cycle-btn:focus {
-  border-color: var(--color-primary);
-  color: var(--color-primary);
-  outline: none;
-}
-
-.cycle-btn.active {
-  background: var(--color-primary);
-  color: var(--navy-900);
-  border-color: var(--color-primary);
-  box-shadow: var(--glow);
-  font-weight: 700;
-}
-
-/* ── Typewriter ── */
-.typewriter-preview {
-  margin-top: var(--space-4);
-  padding: var(--space-4) var(--space-6);
-  background: var(--navy-800);
-  border-radius: 10px;
-  border-left: 3px solid var(--color-primary);
-  min-height: 3.5rem;
-  color: var(--color-text-dim);
-  font-style: italic;
-  font-size: 1rem;
-  line-height: 1.7;
-}
-
-.typewriter-cursor {
-  display: inline-block;
-  width: 2px;
-  height: 1.1em;
-  background: var(--color-primary);
-  margin-left: 2px;
-  vertical-align: text-bottom;
-  animation: blink 1s step-end infinite;
-}
-
-@keyframes blink {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0; }
-}
-
-/* ── Forge Complete ── */
-.complete { border-color: var(--color-primary); border-width: 2px; }
-
-.complete-header {
-  font-family: var(--font-display);
-  font-size: 2.5rem;
-  color: var(--color-primary);
-  text-shadow: var(--glow);
+  transition: all var(--dur) var(--ease);
   text-align: center;
-  margin: 0 0 var(--space-6);
-  letter-spacing: .06em;
 }
-
-.summary {
-  text-align: left;
-  background: var(--navy-900);
-  color: var(--green-500);
-  padding: var(--space-6);
-  border-radius: 10px;
-  overflow-x: auto;
-  font-size: .85rem;
-  line-height: 1.7;
-  border: 1px solid rgba(16, 185, 129, .2);
+.industry-opt:hover { border-color: var(--border-md); background: var(--surface3); }
+.industry-opt.selected {
+  border-color: var(--accent);
+  background: var(--accent-dim);
 }
+.ind-emoji { font-size: 20px; line-height: 1; }
+.ind-name  { font-size: 11px; font-weight: 500; color: var(--text-muted); white-space: nowrap; }
+.industry-opt.selected .ind-name { color: var(--accent); }
 
-.complete-actions {
-  display: flex;
-  justify-content: center;
-  margin-top: var(--space-6);
+/* Location rows */
+.loc-rows { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+.loc-row  {
+  display: grid;
+  grid-template-columns: 1fr 1fr 32px;
+  gap: 8px;
+  align-items: center;
 }
-
-.forge-btn {
-  font-family: var(--font-display);
-  font-size: 1.25rem;
-  padding: var(--space-3) var(--space-10);
-  background: var(--navy-800);
-  color: var(--color-primary);
-  border: 1px solid var(--color-primary);
-  border-radius: 12px;
+.loc-remove {
+  width: 32px; height: 32px;
+  border-radius: var(--r);
+  border: 1px solid var(--border-md);
+  background: transparent;
+  color: var(--text-dim);
   cursor: pointer;
-  letter-spacing: .05em;
-  transition: background var(--duration) var(--ease),
-              box-shadow var(--duration) var(--ease),
-              transform 150ms var(--ease);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  transition: all var(--dur) var(--ease);
+}
+.loc-remove:hover { border-color: var(--danger); color: var(--danger); background: rgba(248,81,73,.08); }
+.loc-remove:disabled { opacity: .3; cursor: default; pointer-events: none; }
+
+.btn-add-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--accent);
+  background: transparent;
+  border: 1px dashed rgba(14,165,233,.3);
+  border-radius: var(--r);
+  padding: 7px 12px;
+  cursor: pointer;
+  transition: all var(--dur) var(--ease);
+  font-family: var(--font);
+}
+.btn-add-row:hover { background: var(--accent-dim); border-style: solid; }
+
+/* Headcount */
+.headcount-row {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 20px;
+  align-items: center;
+}
+.headcount-big {
+  font-size: 40px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -.03em;
+  line-height: 1;
+}
+.headcount-lbl { font-size: 12px; color: var(--text-dim); margin-top: 4px; }
+
+.slider-group { display: flex; flex-direction: column; gap: 6px; }
+.slider-input {
+  width: 100%;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+.slider-input::-webkit-slider-runnable-track {
+  height: 4px;
+  background: var(--surface3);
+  border-radius: 2px;
+}
+.slider-input::-webkit-slider-thumb {
+  appearance: none;
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--surface);
+  box-shadow: 0 0 0 2px var(--accent);
+  margin-top: -6px;
+  cursor: grab;
+  transition: box-shadow var(--dur) var(--ease);
+}
+.slider-input::-webkit-slider-thumb:active { cursor: grabbing; }
+.slider-input::-moz-range-track { height: 4px; background: var(--surface3); border-radius: 2px; }
+.slider-input::-moz-range-thumb {
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--surface);
+  cursor: grab;
+}
+.slider-marks { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-dim); }
+
+/* Revenue options */
+.revenue-grid { display: flex; flex-direction: column; gap: 8px; }
+.revenue-opt {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 13px 14px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  cursor: pointer;
+  transition: all var(--dur) var(--ease);
+}
+.revenue-opt:hover { border-color: var(--border-md); }
+.revenue-opt.selected { border-color: var(--accent); background: var(--accent-dim); }
+.rev-icon  { font-size: 18px; flex-shrink: 0; }
+.rev-label { font-size: 13px; font-weight: 600; color: var(--text); }
+.rev-sub   { font-size: 11px; color: var(--text-dim); }
+.revenue-opt.selected .rev-label { color: var(--accent); }
+.revenue-opt.selected .rev-sub   { color: var(--text-muted); }
+.rev-radio {
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-md);
+  margin-left: auto;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--dur) var(--ease);
+}
+.revenue-opt.selected .rev-radio {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+.revenue-opt.selected .rev-radio::after {
+  content: "";
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: #fff;
 }
 
-.forge-btn:hover {
-  background: var(--color-primary);
-  color: var(--navy-900);
-  box-shadow: var(--glow);
+/* Income segmented */
+.income-seg { display: flex; gap: 8px; }
+.income-opt {
+  flex: 1;
+  padding: 11px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--surface2);
+  cursor: pointer;
+  text-align: center;
+  transition: all var(--dur) var(--ease);
+  font-family: var(--font);
+}
+.income-opt:hover { border-color: var(--border-md); }
+.income-opt.selected { border-color: var(--border-md); background: var(--surface3); }
+.inc-label { font-size: 12px; font-weight: 600; color: var(--text-muted); }
+.inc-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  margin: 0 auto 6px;
+  background: var(--border-md);
+  transition: background var(--dur) var(--ease);
+}
+.income-opt.selected .inc-dot { background: var(--color, var(--accent)); }
+.income-opt.selected .inc-label { color: var(--text); }
+
+/* Cycle list */
+.cycle-list { display: flex; flex-direction: column; gap: 6px; }
+.cycle-opt {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--surface2);
+  cursor: pointer;
+  transition: all var(--dur) var(--ease);
+}
+.cycle-opt:hover { border-color: var(--border-md); }
+.cycle-opt.selected { border-color: var(--accent); background: var(--accent-dim); }
+.cyc-label { font-size: 13px; font-weight: 600; color: var(--text); }
+.cyc-desc  { font-size: 11px; color: var(--text-dim); margin-top: 1px; }
+.cycle-opt.selected .cyc-label { color: var(--accent); }
+.cycle-indicator {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-md);
+  flex-shrink: 0;
+  transition: all var(--dur) var(--ease);
+}
+.cycle-opt.selected .cycle-indicator {
+  border-color: var(--accent);
+  background: var(--accent);
 }
 
-.forge-btn:active { transform: scale(.97); }
+/* Char counter */
+.char-counter { font-size: 11px; color: var(--text-dim); text-align: right; }
 
-@media (max-width: 600px) {
-  .loc-row { grid-template-columns: 1fr 1fr; }
-  .loc-input[aria-label*="latitude"],
-  .loc-input[aria-label*="longitude"] { display: none; }
-  .gauges { flex-direction: column; }
+/* ── Right panel ── */
+.right-panel {
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
 }
 
+.panel-header {
+  padding: 20px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.panel-badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-dim);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 2px 8px;
+}
+
+/* Company card */
+.company-card {
+  margin: 16px;
+  background: var(--surface2);
+  border: 1px solid var(--border-md);
+  border-radius: var(--r-lg);
+  padding: 20px;
+  min-height: 140px;
+}
+.company-card-name {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -.02em;
+  margin-bottom: 12px;
+  min-height: 28px;
+}
+.company-card-meta { display: flex; flex-direction: column; gap: 6px; }
+.card-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.card-meta-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+}
+
+/* Completeness */
+.panel-section {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.panel-section:last-child { border-bottom: none; }
+.panel-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 12px;
+}
+
+.completion-list { display: flex; flex-direction: column; gap: 8px; }
+.completion-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+}
+.comp-check {
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-md);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  color: transparent;
+  transition: all var(--dur) var(--ease);
+}
+.comp-check.done {
+  background: var(--success);
+  border-color: var(--success);
+  color: #fff;
+}
+.comp-label { color: var(--text-muted); }
+.comp-label.done { color: var(--text); }
+
+/* Action buttons */
+.panel-actions {
+  padding: 16px 20px;
+  margin-top: auto;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Divider */
+.form-divider { height: 1px; background: var(--border); margin: 4px 0 16px; }
+
+/* Responsive */
+@media (max-width: 1100px) {
+  .app { grid-template-columns: 220px 1fr; }
+  .right-panel { display: none; }
+}
+@media (max-width: 720px) {
+  .app { grid-template-columns: 1fr; }
+  .sidebar { display: none; }
+  .industry-grid { grid-template-columns: repeat(5, 1fr); }
+}
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation: none !important;
-    transition: none !important;
-  }
+  *, *::before, *::after { transition: none !important; }
 }
 `;
 
-/* ─── GEAR SELECTOR ─────────────────────────────────────────── */
-const INDUSTRY_ICONS = {
-  "Food & Beverage": "🍽️", "Technology": "💻", "Healthcare": "🏥",
-  "Finance": "💰", "Manufacturing": "🏭", "Retail": "🛍️",
-  "Energy": "⚡", "Education": "🎓", "Real Estate": "🏠",
-  "Media & Entertainment": "🎬",
-};
+/* ─── Sidebar component ─── */
+const STEP_NAV = [
+  { n: 1, key: "companyName",   label: "Company name",   tab: "identity" },
+  { n: 2, key: "industry",      label: "Industry",       tab: "identity" },
+  { n: 3, key: "locations",     label: "Locations",      tab: "operations" },
+  { n: 4, key: "headcount",     label: "Headcount",      tab: "operations" },
+  { n: 5, key: "revenue",       label: "Revenue",        tab: "financial" },
+  { n: 6, key: "netIncome",     label: "Net income",     tab: "financial" },
+  { n: 7, key: "businessCycle", label: "Business cycle", tab: "vision" },
+  { n: 8, key: "vision",        label: "Vision",         tab: "vision" },
+  { n: 9, key: "mission",       label: "Mission",        tab: "vision" },
+];
 
-function GearSelector({ options = INDUSTRIES, value, onChange }) {
-  const [idx, setIdx] = useState(Math.max(0, options.indexOf(value)));
-
-  const rotate = useCallback((dir) => {
-    setIdx(prev => {
-      const next = (prev + dir + options.length) % options.length;
-      onChange?.(options[next]);
-      return next;
-    });
-  }, [options, onChange]);
-
-  const onKey = (e) => {
-    if (["ArrowRight", "ArrowDown"].includes(e.key)) { e.preventDefault(); rotate(1); }
-    if (["ArrowLeft", "ArrowUp"].includes(e.key))   { e.preventDefault(); rotate(-1); }
-  };
-
-  const deg = idx * (360 / options.length);
-  const icon = INDUSTRY_ICONS[options[idx]] || "🏢";
-
+function Sidebar({ profile, activeTab, setTab }) {
+  const done = countDone(profile);
+  const grouped = TABS.map(t => ({
+    ...t,
+    steps: STEP_NAV.filter(s => s.tab === t.id),
+  }));
   return (
-    <div
-      className="gear-wrapper"
-      role="listbox"
-      aria-label="Select Industry"
-      tabIndex={0}
-      onKeyDown={onKey}
-    >
-      <div className="gear-outer">
-        <div className="gear-ring">
-          <div className="gear-ring-dot" />
-        </div>
-        <div className="gear-dial" style={{ transform: `rotate(${deg}deg)` }}>
-          <span role="img" aria-hidden="true">{icon}</span>
+    <aside className="sidebar">
+      <div className="sidebar-logo">
+        <div className="logo-mark">🏗️</div>
+        <div>
+          <div className="logo-text">Company Forge</div>
+          <div className="logo-sub">Build your profile</div>
         </div>
       </div>
-
-      <div className="gear-label-box">
-        <p
-          role="option"
-          aria-selected="true"
-          aria-live="polite"
-          className="gear-value"
-        >
-          {options[idx]}
-        </p>
-        <p className="gear-counter">{idx + 1} / {options.length}</p>
-        <div className="gear-btns">
-          <button className="btn" onClick={() => rotate(-1)} aria-label="Previous industry">◀ Prev</button>
-          <button className="btn" onClick={() => rotate(1)}  aria-label="Next industry">Next ▶</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ─── RADIAL GAUGE ──────────────────────────────────────────── */
-function RadialGauge({ value = 0, max = 1e9, label = "Revenue", color }) {
-  const r = 76;
-  const c = 2 * Math.PI * r;
-  const pct = Math.min(Math.max(Math.abs(value) / max, 0), 1);
-  const offset = c * (1 - pct);
-  const millions = Math.abs(value) / 1e6;
-  const display = millions >= 1000
-    ? `$${(millions / 1000).toFixed(1)}B`
-    : `$${millions.toFixed(0)}M`;
-
-  return (
-    <div
-      role="meter"
-      tabIndex={0}
-      aria-label={label}
-      aria-valuemin={0}
-      aria-valuemax={max}
-      aria-valuenow={Math.abs(value)}
-      aria-valuetext={`${label}: $${Math.abs(value).toLocaleString()}`}
-    >
-      <svg width="200" height="200" viewBox="0 0 200 200" aria-hidden="true">
-        <defs>
-          <filter id={`glow-${label.replace(/\s/g,'')}`}>
-            <feGaussianBlur stdDeviation="3" result="blur" />
-            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-          </filter>
-        </defs>
-        {/* Track */}
-        <circle cx="100" cy="100" r={r} stroke="var(--navy-600)" strokeWidth="14" fill="none" />
-        {/* Tick marks */}
-        {Array.from({ length: 12 }).map((_, i) => {
-          const a = (i * 30 - 90) * (Math.PI / 180);
-          const x1 = 100 + (r + 8) * Math.cos(a),  y1 = 100 + (r + 8) * Math.sin(a);
-          const x2 = 100 + (r + 14) * Math.cos(a), y2 = 100 + (r + 14) * Math.sin(a);
-          return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="rgba(255,176,46,.2)" strokeWidth="1.5" />;
-        })}
-        {/* Arc fill */}
-        <circle
-          cx="100" cy="100" r={r}
-          stroke={color || "var(--color-primary)"}
-          strokeWidth="14"
-          fill="none"
-          strokeLinecap="round"
-          strokeDasharray={c}
-          strokeDashoffset={offset}
-          transform="rotate(-90 100 100)"
-          style={{ transition: "stroke-dashoffset var(--duration) var(--ease), stroke var(--duration) var(--ease)" }}
-        />
-        {/* Glow overlay */}
-        <circle
-          cx="100" cy="100" r={r}
-          stroke={color || "var(--color-primary)"}
-          strokeWidth="3"
-          fill="none"
-          strokeLinecap="round"
-          strokeDasharray={c}
-          strokeDashoffset={offset}
-          transform="rotate(-90 100 100)"
-          filter={`url(#glow-${label.replace(/\s/g,'')})`}
-          opacity=".5"
-          style={{ transition: "stroke-dashoffset var(--duration) var(--ease)" }}
-        />
-        <text x="100" y="96" textAnchor="middle" fill={color || "var(--color-primary)"}
-          fontSize="20" fontFamily="Orbitron, system-ui" fontWeight="700">{display}</text>
-        <text x="100" y="114" textAnchor="middle" fill="var(--steel-300)"
-          fontSize="11" fontFamily="Inter, system-ui">{label}</text>
-        <text x="100" y="130" textAnchor="middle" fill="var(--steel-500)"
-          fontSize="10" fontFamily="Inter, system-ui">{Math.round(pct * 100)}%</text>
-      </svg>
-    </div>
-  );
-}
-
-/* ─── GEO LOCATIONS ─────────────────────────────────────────── */
-function GeoLocations({ locations, onChange }) {
-  const update = (idx, key, val) =>
-    onChange(locations.map((l, k) => k === idx ? { ...l, [key]: val } : l));
-  const add = () =>
-    onChange([...locations, { city: "", country: "", lat: 0, lng: 0 }]);
-  const remove = (idx) =>
-    onChange(locations.filter((_, k) => k !== idx));
-
-  return (
-    <div>
-      <div className="loc-list">
-        {locations.map((l, idx) => (
-          <div key={idx} className="loc-row">
-            <input className="loc-input" placeholder="City"
-              value={l.city} aria-label={`Location ${idx + 1} city`}
-              onChange={e => update(idx, "city", e.target.value)} />
-            <input className="loc-input" placeholder="Country"
-              value={l.country} aria-label={`Location ${idx + 1} country`}
-              onChange={e => update(idx, "country", e.target.value)} />
-            <input className="loc-input" placeholder="Lat" type="number"
-              step="0.0001" min="-90" max="90"
-              value={l.lat || ""} aria-label={`Location ${idx + 1} latitude`}
-              onChange={e => update(idx, "lat", parseFloat(e.target.value) || 0)} />
-            <input className="loc-input" placeholder="Lng" type="number"
-              step="0.0001" min="-180" max="180"
-              value={l.lng || ""} aria-label={`Location ${idx + 1} longitude`}
-              onChange={e => update(idx, "lng", parseFloat(e.target.value) || 0)} />
-            <button className="loc-remove" onClick={() => remove(idx)}
-              aria-label={`Remove location ${idx + 1}`} disabled={locations.length === 1}>✕</button>
-          </div>
+      <nav className="sidebar-nav">
+        {grouped.map(group => (
+          <React.Fragment key={group.id}>
+            <div className="nav-section-label">{group.label}</div>
+            {group.steps.map(({ n, key, label }) => {
+              const isDone = stepDone(key, profile[key]);
+              return (
+                <button
+                  key={n}
+                  className={`nav-item ${isDone ? "done" : ""} ${activeTab === group.id ? "active" : ""}`}
+                  onClick={() => setTab(group.id)}
+                >
+                  <span className="nav-step-num">{isDone ? "✓" : n}</span>
+                  {label}
+                </button>
+              );
+            })}
+          </React.Fragment>
         ))}
+      </nav>
+      <div className="sidebar-footer">
+        <div className="progress-label">
+          <span>Profile completion</span>
+          <span>{done}/9</span>
+        </div>
+        <div className="progress-track">
+          <div className="progress-fill" style={{ width: `${(done / 9) * 100}%` }} />
+        </div>
       </div>
-      <button className="btn" onClick={add} aria-label="Add a new location">＋ Add Location</button>
-    </div>
+    </aside>
   );
 }
 
-/* ─── HEADCOUNT SLIDER ──────────────────────────────────────── */
-function HeadcountSlider({ value, onChange }) {
-  const maxDots = 50;
-  const dotCount = Math.round((value / 50000) * maxDots);
+/* ─── Right panel ─── */
+function RightPanel({ profile, onCreate, onSave }) {
+  const KEYS = [
+    { key: "companyName",   label: "Company name" },
+    { key: "industry",      label: "Industry" },
+    { key: "locations",     label: "Location" },
+    { key: "headcount",     label: "Headcount" },
+    { key: "revenue",       label: "Revenue" },
+    { key: "netIncome",     label: "Net income" },
+    { key: "businessCycle", label: "Business cycle" },
+    { key: "vision",        label: "Vision" },
+    { key: "mission",       label: "Mission" },
+  ];
+  const done = countDone(profile);
+
+  const summary = [
+    profile.industry && INDUSTRIES.find(i => i.id === profile.industry)?.label,
+    profile.locations.find(l => l.city)?.city,
+    profile.headcount > 0 && `${profile.headcount.toLocaleString()} employees`,
+    profile.revenue && REVENUE_TIERS.find(r => r.id === profile.revenue)?.label,
+    profile.businessCycle && CYCLES.find(c => c.id === profile.businessCycle)?.label + " stage",
+  ].filter(Boolean);
 
   return (
-    <div className="headcount-widget">
-      <input
-        type="range"
-        min="0" max="50000" step="50"
-        value={value}
-        aria-label="Headcount"
-        aria-valuenow={value}
-        aria-valuemin={0} aria-valuemax={50000}
-        aria-valuetext={`${value.toLocaleString()} employees`}
-        onChange={e => onChange(+e.target.value)}
-      />
-      <div className="people-viz" aria-hidden="true">
-        {Array.from({ length: dotCount }).map((_, i) => (
-          <span key={i} className="person-icon" style={{ animationDelay: `${i * 4}ms` }}>👤</span>
-        ))}
+    <aside className="right-panel">
+      <div className="panel-header">
+        Company preview
+        <span className="panel-badge">{done} / 9</span>
       </div>
-      <p className="headcount-num" aria-live="polite">{value.toLocaleString()} people</p>
-    </div>
-  );
-}
+      <div className="company-card">
+        <div className="company-card-name">
+          {profile.companyName || <span style={{ color: "var(--text-dim)", fontWeight: 400, fontSize: 14 }}>No name yet</span>}
+        </div>
+        <div className="company-card-meta">
+          {summary.map((item, i) => (
+            <div key={i} className="card-meta-row">
+              <div className="card-meta-dot" />
+              {item}
+            </div>
+          ))}
+        </div>
+      </div>
 
-/* ─── BUSINESS CYCLE WHEEL ──────────────────────────────────── */
-const CYCLE_COLORS = {
-  Startup: "#38bdf8", Growth: "#ffb02e", Maturity: "#10b981", Renewal: "#a78bfa",
-};
-
-function CycleWheel({ value, onChange }) {
-  const cx = 100, cy = 100, r = 72;
-  const total = CYCLES.length;
-
-  return (
-    <div className="cycle-outer">
-      <div className="cycle-ring">
-        <svg className="cycle-svg" viewBox="0 0 200 200" aria-hidden="true">
-          {CYCLES.map((cycle, i) => {
-            const sa = (i / total) * 2 * Math.PI - Math.PI / 2 + 0.06;
-            const ea = ((i + 1) / total) * 2 * Math.PI - Math.PI / 2 - 0.06;
-            const x1 = cx + r * Math.cos(sa), y1 = cy + r * Math.sin(sa);
-            const x2 = cx + r * Math.cos(ea), y2 = cy + r * Math.sin(ea);
-            const x3 = cx + (r - 28) * Math.cos(ea), y3 = cy + (r - 28) * Math.sin(ea);
-            const x4 = cx + (r - 28) * Math.cos(sa), y4 = cy + (r - 28) * Math.sin(sa);
-            const isActive = value === cycle;
-            const mid = (sa + ea) / 2;
-            const lx = cx + (r - 14) * Math.cos(mid);
-            const ly = cy + (r - 14) * Math.sin(mid);
-            const col = CYCLE_COLORS[cycle];
+      <div className="panel-section">
+        <div className="panel-section-title">Checklist</div>
+        <div className="completion-list">
+          {KEYS.map(({ key, label }) => {
+            const isDone = stepDone(key, profile[key]);
             return (
-              <g key={cycle} className="cycle-spoke"
-                onClick={() => onChange(cycle)}
-                tabIndex={0}
-                onKeyDown={e => (e.key === " " || e.key === "Enter") && onChange(cycle)}
-              >
-                <path
-                  d={`M ${x1} ${y1} A ${r} ${r} 0 0 1 ${x2} ${y2} L ${x3} ${y3} A ${r - 28} ${r - 28} 0 0 0 ${x4} ${y4} Z`}
-                  fill={isActive ? col : `${col}33`}
-                  stroke={isActive ? col : "transparent"}
-                  strokeWidth="1.5"
-                  style={{ transition: "fill var(--duration) var(--ease)" }}
-                />
-                <text x={lx} y={ly} textAnchor="middle" dominantBaseline="middle"
-                  fontSize="8.5" fill={isActive ? "#fff" : col}
-                  fontFamily="Orbitron, system-ui" fontWeight="700" pointerEvents="none">
-                  {cycle}
-                </text>
-              </g>
+              <div key={key} className="completion-row">
+                <div className={`comp-check ${isDone ? "done" : ""}`}>{isDone ? "✓" : ""}</div>
+                <span className={`comp-label ${isDone ? "done" : ""}`}>{label}</span>
+              </div>
             );
           })}
-          <circle cx={cx} cy={cy} r={38} fill="var(--navy-800)" stroke="rgba(255,176,46,.2)" strokeWidth="1" />
-          <text x={cx} y={cy - 6} textAnchor="middle"
-            fontSize="9" fill="var(--steel-300)" fontFamily="Orbitron, system-ui">STAGE</text>
-          <text x={cx} y={cy + 10} textAnchor="middle"
-            fontSize="11" fill={CYCLE_COLORS[value] || "var(--amber-500)"}
-            fontFamily="Orbitron, system-ui" fontWeight="700">{value || "—"}</text>
-        </svg>
+        </div>
       </div>
-      <div className="cycle-labels" role="radiogroup" aria-label="Business cycle">
-        {CYCLES.map(c => (
-          <button key={c} className={`cycle-btn ${value === c ? "active" : ""}`}
-            role="radio" aria-checked={value === c}
-            onClick={() => onChange(c)}>{c}</button>
-        ))}
+
+      <div className="panel-actions">
+        <button className="btn btn-primary" style={{ justifyContent: "center" }} onClick={onCreate}>
+          Create company
+        </button>
+        <button className="btn btn-ghost" style={{ justifyContent: "center" }} onClick={onSave}>
+          Save as draft
+        </button>
       </div>
-    </div>
+    </aside>
   );
 }
 
-/* ─── TYPEWRITER ────────────────────────────────────────────── */
-function Typewriter({ text, placeholder }) {
-  const [shown, setShown] = useState("");
-  const timerRef = useRef(null);
+/* ─── Tab content sections ─── */
+function IdentityTab({ profile, set }) {
+  const ind = INDUSTRIES.find(i => i.id === profile.industry);
+  return (
+    <>
+      <div className={`section-card ${stepDone("companyName", profile.companyName) ? "done" : ""}`}>
+        <div className="section-head">
+          <div className="section-num">{stepDone("companyName", profile.companyName) ? "✓" : "1"}</div>
+          <div className="section-title">Company name</div>
+          <div className="section-desc">What is your company called?</div>
+        </div>
+        <div className="section-body">
+          <input
+            className="form-input form-input-lg"
+            placeholder="e.g. Acme Corporation"
+            value={profile.companyName}
+            onChange={e => set("companyName", e.target.value)}
+            autoComplete="organization"
+            maxLength={80}
+          />
+          <div className="char-counter" style={{ marginTop: 6 }}>{profile.companyName.length} / 80</div>
+        </div>
+      </div>
 
-  useEffect(() => {
-    clearInterval(timerRef.current);
-    setShown("");
-    if (!text) return;
-    let i = 0;
-    timerRef.current = setInterval(() => {
-      i++;
-      setShown(text.slice(0, i));
-      if (i >= text.length) clearInterval(timerRef.current);
-    }, 20);
-    return () => clearInterval(timerRef.current);
-  }, [text]);
+      <div className={`section-card ${stepDone("industry", profile.industry) ? "done" : ""}`}>
+        <div className="section-head">
+          <div className="section-num">{stepDone("industry", profile.industry) ? "✓" : "2"}</div>
+          <div className="section-title">Industry</div>
+          {ind && <div className="section-desc">{ind.icon} {ind.label} selected</div>}
+        </div>
+        <div className="section-body">
+          <div className="industry-grid">
+            {INDUSTRIES.map(i => (
+              <button key={i.id} className={`industry-opt ${profile.industry === i.id ? "selected" : ""}`}
+                onClick={() => set("industry", i.id)}>
+                <span className="ind-emoji">{i.icon}</span>
+                <span className="ind-name">{i.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function OperationsTab({ profile, set }) {
+  const update = (idx, field, val) =>
+    set("locations", profile.locations.map((l, i) => i === idx ? { ...l, [field]: val } : l));
+  const add    = () => set("locations", [...profile.locations, { city: "", country: "" }]);
+  const remove = idx => set("locations", profile.locations.filter((_, i) => i !== idx));
 
   return (
-    <div className="typewriter-preview" aria-live="polite">
-      {shown || <span style={{ color: "var(--steel-500)" }}>{placeholder}</span>}
-      {text && shown.length < text.length && <span className="typewriter-cursor" aria-hidden="true" />}
-    </div>
+    <>
+      <div className={`section-card ${stepDone("locations", profile.locations) ? "done" : ""}`}>
+        <div className="section-head">
+          <div className="section-num">{stepDone("locations", profile.locations) ? "✓" : "3"}</div>
+          <div className="section-title">Locations</div>
+          <div className="section-desc">HQ and branch offices</div>
+        </div>
+        <div className="section-body">
+          <div className="form-group">
+            <label className="form-label">City &amp; Country</label>
+            <div className="loc-rows">
+              {profile.locations.map((l, idx) => (
+                <div key={idx} className="loc-row">
+                  <input className="form-input" placeholder="City"
+                    value={l.city} onChange={e => update(idx, "city", e.target.value)} />
+                  <input className="form-input" placeholder="Country"
+                    value={l.country} onChange={e => update(idx, "country", e.target.value)} />
+                  <button className="loc-remove" onClick={() => remove(idx)}
+                    disabled={profile.locations.length === 1}>✕</button>
+                </div>
+              ))}
+            </div>
+            <button className="btn-add-row" onClick={add}>+ Add location</button>
+          </div>
+        </div>
+      </div>
+
+      <div className={`section-card ${stepDone("headcount", profile.headcount) ? "done" : ""}`}>
+        <div className="section-head">
+          <div className="section-num">{stepDone("headcount", profile.headcount) ? "✓" : "4"}</div>
+          <div className="section-title">Headcount</div>
+          <div className="section-desc">Full-time employees</div>
+        </div>
+        <div className="section-body">
+          <div className="headcount-row">
+            <div>
+              <div className="headcount-big">{profile.headcount.toLocaleString()}</div>
+              <div className="headcount-lbl">employees</div>
+            </div>
+            <div className="slider-group">
+              <input type="range" className="slider-input" min="1" max="10000" step="1"
+                value={profile.headcount} onChange={e => set("headcount", +e.target.value)} />
+              <div className="slider-marks">
+                <span>1</span><span>100</span><span>500</span><span>2K</span><span>10K+</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
   );
 }
 
-/* ─── APP ───────────────────────────────────────────────────── */
+function FinancialTab({ profile, set }) {
+  return (
+    <>
+      <div className={`section-card ${stepDone("revenue", profile.revenue) ? "done" : ""}`}>
+        <div className="section-head">
+          <div className="section-num">{stepDone("revenue", profile.revenue) ? "✓" : "5"}</div>
+          <div className="section-title">Annual revenue</div>
+          <div className="section-desc">Approximate range</div>
+        </div>
+        <div className="section-body">
+          <div className="revenue-grid">
+            {REVENUE_TIERS.map(t => (
+              <div key={t.id} className={`revenue-opt ${profile.revenue === t.id ? "selected" : ""}`}
+                onClick={() => set("revenue", t.id)}>
+                <span className="rev-icon">{t.icon}</span>
+                <div>
+                  <div className="rev-label">{t.label}</div>
+                  <div className="rev-sub">{t.sub}</div>
+                </div>
+                <div className="rev-radio" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className={`section-card ${stepDone("netIncome", profile.netIncome) ? "done" : ""}`}>
+        <div className="section-head">
+          <div className="section-num">{stepDone("netIncome", profile.netIncome) ? "✓" : "6"}</div>
+          <div className="section-title">Profitability</div>
+          <div className="section-desc">Current net income status</div>
+        </div>
+        <div className="section-body">
+          <div className="income-seg">
+            {INCOME_TIERS.map(t => (
+              <button key={t.id}
+                className={`income-opt ${profile.netIncome === t.id ? "selected" : ""}`}
+                style={{ "--color": t.color }}
+                onClick={() => set("netIncome", t.id)}>
+                <div className="inc-dot" />
+                <div className="inc-label">{t.label}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function VisionTab({ profile, set }) {
+  return (
+    <>
+      <div className={`section-card ${stepDone("businessCycle", profile.businessCycle) ? "done" : ""}`}>
+        <div className="section-head">
+          <div className="section-num">{stepDone("businessCycle", profile.businessCycle) ? "✓" : "7"}</div>
+          <div className="section-title">Business cycle</div>
+          <div className="section-desc">Current stage</div>
+        </div>
+        <div className="section-body">
+          <div className="cycle-list">
+            {CYCLES.map(c => (
+              <div key={c.id} className={`cycle-opt ${profile.businessCycle === c.id ? "selected" : ""}`}
+                onClick={() => set("businessCycle", c.id)}>
+                <div className="cycle-indicator" />
+                <div>
+                  <div className="cyc-label">{c.label}</div>
+                  <div className="cyc-desc">{c.desc}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className={`section-card ${stepDone("vision", profile.vision) ? "done" : ""}`}>
+        <div className="section-head">
+          <div className="section-num">{stepDone("vision", profile.vision) ? "✓" : "8"}</div>
+          <div className="section-title">Vision</div>
+          <div className="section-desc">Long-term aspiration</div>
+        </div>
+        <div className="section-body">
+          <div className="form-group">
+            <label className="form-label">Vision statement</label>
+            <textarea className="form-textarea" rows={3}
+              placeholder="Where do you see this company in 10 years?"
+              value={profile.vision} onChange={e => set("vision", e.target.value)}
+              maxLength={300} />
+            <div className="char-counter">{profile.vision.length} / 300</div>
+          </div>
+        </div>
+      </div>
+
+      <div className={`section-card ${stepDone("mission", profile.mission) ? "done" : ""}`}>
+        <div className="section-head">
+          <div className="section-num">{stepDone("mission", profile.mission) ? "✓" : "9"}</div>
+          <div className="section-title">Mission</div>
+          <div className="section-desc">Core purpose</div>
+        </div>
+        <div className="section-body">
+          <div className="form-group">
+            <label className="form-label">Mission statement</label>
+            <textarea className="form-textarea" rows={3}
+              placeholder="What does this company do and for whom?"
+              value={profile.mission} onChange={e => set("mission", e.target.value)}
+              maxLength={300} />
+            <div className="char-counter">{profile.mission.length} / 300</div>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+/* ═══════════════════════════ APP ═══════════════════════════ */
 export default function App() {
   const [profile, setProfile] = useState({
-    companyName: "",
-    industry: "Technology",
-    locations: [{ city: "", country: "", lat: 0, lng: 0 }],
-    headcount: 500,
-    revenue: 250_000_000,
-    netIncome: 40_000_000,
-    businessCycle: "Growth",
-    vision: "",
-    mission: "",
+    companyName:   "",
+    industry:      "",
+    locations:     [{ city: "", country: "" }],
+    headcount:     50,
+    revenue:       "",
+    netIncome:     "",
+    businessCycle: "",
+    vision:        "",
+    mission:       "",
   });
+  const [activeTab, setActiveTab] = useState("identity");
 
   const set = (key, val) => setProfile(p => ({ ...p, [key]: val }));
+  const done = countDone(profile);
 
-  const completed = [
-    profile.companyName,
-    profile.industry,
-    profile.locations.some(l => l.city),
-    profile.headcount > 0,
-    profile.revenue > 0,
-    profile.netIncome !== 0,
-    profile.businessCycle,
-    profile.vision,
-    profile.mission,
-  ].filter(Boolean).length;
+  const tabDone = (tabId) => {
+    const steps = STEP_NAV.filter(s => s.tab === tabId);
+    return steps.filter(s => stepDone(s.key, profile[s.key])).length;
+  };
+
+  const randomize = () => {
+    const r = RANDOM_PROFILES[Math.floor(Math.random() * RANDOM_PROFILES.length)];
+    setProfile({
+      companyName:   r.companyName,
+      industry:      r.industry,
+      locations:     [{ city: r.city, country: r.country }],
+      headcount:     r.headcount,
+      revenue:       r.revenue,
+      netIncome:     r.netIncome,
+      businessCycle: r.businessCycle,
+      vision:        r.vision,
+      mission:       r.mission,
+    });
+  };
+
+  const saveDraft = () => {
+    const json = JSON.stringify(profile, null, 2);
+    const a = Object.assign(document.createElement("a"), {
+      href: URL.createObjectURL(new Blob([json], { type: "application/json" })),
+      download: `${profile.companyName || "company"}-draft.json`,
+    });
+    a.click();
+  };
+
+  const create = () => {
+    alert(`${profile.companyName || "Company"} has been created.\n\n${done}/9 fields completed.`);
+  };
 
   return (
     <>
       <style>{STYLES}</style>
-      <main className="forge">
+      <div className="app">
+        <Sidebar profile={profile} activeTab={activeTab} setTab={setActiveTab} />
 
-        {/* Header */}
-        <header className="forge-head">
-          <h1 className="forge-title">⚒ The Company Forge</h1>
-          <p className="forge-subtitle">Forge your company identity, station by station.</p>
-          <div className="progress-track" role="progressbar"
-            aria-valuenow={completed} aria-valuemin={0} aria-valuemax={9}
-            aria-label={`${completed} of 9 stations complete`}>
-            {Array.from({ length: 9 }).map((_, i) => (
-              <span key={i} className={`prog-dot ${i < completed ? "done" : ""}`} aria-hidden="true" />
-            ))}
+        <main className="main">
+          <div className="topbar">
+            <div className="topbar-row">
+              <h1 className="page-title">
+                {profile.companyName || "Build your company"}
+              </h1>
+              <div className="topbar-actions">
+                <button className="btn btn-ghost" onClick={randomize}>Randomize</button>
+                <button className="btn btn-primary" onClick={create}>Create company</button>
+              </div>
+            </div>
+            <div className="tab-bar">
+              {TABS.map(t => {
+                const n = tabDone(t.id);
+                const total = STEP_NAV.filter(s => s.tab === t.id).length;
+                return (
+                  <button key={t.id} className={`tab ${activeTab === t.id ? "active" : ""}`}
+                    onClick={() => setActiveTab(t.id)}>
+                    {t.label}
+                    {n === total && <span className="tab-badge">✓</span>}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-          <p className="progress-label">{completed} / 9 stations forged</p>
-        </header>
 
-        {/* 1 · Company Name */}
-        <section className="station" aria-labelledby="s1">
-          <h2 id="s1"><span className="station-icon" aria-hidden="true">🏷</span>1 · Company Name</h2>
-          <input className="nameplate" placeholder="Enter your company name…"
-            value={profile.companyName} onChange={e => set("companyName", e.target.value)}
-            aria-label="Company name" autoComplete="organization" />
-          <div className="nameplate-preview" aria-live="polite">{profile.companyName}</div>
-        </section>
-
-        {/* 2 · Industry */}
-        <section className="station" aria-labelledby="s2">
-          <h2 id="s2"><span className="station-icon" aria-hidden="true">⚙️</span>2 · Industry</h2>
-          <GearSelector value={profile.industry} onChange={v => set("industry", v)} />
-        </section>
-
-        {/* 3 · Locations */}
-        <section className="station" aria-labelledby="s3">
-          <h2 id="s3"><span className="station-icon" aria-hidden="true">📍</span>3 · Locations</h2>
-          <GeoLocations locations={profile.locations} onChange={v => set("locations", v)} />
-        </section>
-
-        {/* 4 · Headcount */}
-        <section className="station" aria-labelledby="s4">
-          <h2 id="s4"><span className="station-icon" aria-hidden="true">👥</span>4 · Headcount</h2>
-          <HeadcountSlider value={profile.headcount} onChange={v => set("headcount", v)} />
-        </section>
-
-        {/* 5 & 6 · Gauges */}
-        <section className="station gauges">
-          <div className="gauge-cell">
-            <h2 id="s5"><span className="station-icon" aria-hidden="true">📈</span>5 · Revenue</h2>
-            <RadialGauge value={profile.revenue} max={1_000_000_000} label="Revenue" />
-            <p className="gauge-amount">${profile.revenue.toLocaleString()}</p>
-            <input type="range" min="0" max="1000000000" step="5000000"
-              value={profile.revenue}
-              aria-label="Revenue" aria-valuenow={profile.revenue}
-              aria-valuemin={0} aria-valuemax={1000000000}
-              aria-valuetext={`Revenue: $${profile.revenue.toLocaleString()}`}
-              onChange={e => set("revenue", +e.target.value)} />
+          <div className="form-area">
+            {activeTab === "identity"   && <IdentityTab   profile={profile} set={set} />}
+            {activeTab === "operations" && <OperationsTab profile={profile} set={set} />}
+            {activeTab === "financial"  && <FinancialTab  profile={profile} set={set} />}
+            {activeTab === "vision"     && <VisionTab     profile={profile} set={set} />}
           </div>
-          <div className="gauge-cell">
-            <h2 id="s6">
-              <span className="station-icon" aria-hidden="true">{profile.netIncome >= 0 ? "💚" : "🔴"}</span>
-              6 · Net Income
-            </h2>
-            <RadialGauge
-              value={Math.abs(profile.netIncome)}
-              max={500_000_000}
-              label={profile.netIncome >= 0 ? "Profit" : "Loss"}
-              color={profile.netIncome >= 0 ? "var(--color-success)" : "var(--color-error)"}
-            />
-            <p className="gauge-amount"
-              style={{ color: profile.netIncome >= 0 ? "var(--color-success)" : "var(--color-error)" }}>
-              {profile.netIncome >= 0 ? "+" : "−"}${Math.abs(profile.netIncome).toLocaleString()}
-            </p>
-            <input type="range" min="-200000000" max="500000000" step="5000000"
-              value={profile.netIncome}
-              aria-label="Net income" aria-valuenow={profile.netIncome}
-              aria-valuemin={-200000000} aria-valuemax={500000000}
-              aria-valuetext={`Net income: ${profile.netIncome >= 0 ? "+" : ""}$${profile.netIncome.toLocaleString()}`}
-              onChange={e => set("netIncome", +e.target.value)} />
-          </div>
-        </section>
+        </main>
 
-        {/* 7 · Business Cycle */}
-        <section className="station" aria-labelledby="s7">
-          <h2 id="s7"><span className="station-icon" aria-hidden="true">🔄</span>7 · Business Cycle</h2>
-          <CycleWheel value={profile.businessCycle} onChange={v => set("businessCycle", v)} />
-        </section>
-
-        {/* 8 · Vision */}
-        <section className="station" aria-labelledby="s8">
-          <h2 id="s8"><span className="station-icon" aria-hidden="true">🌌</span>8 · Vision</h2>
-          <textarea className="vision-field" placeholder="Our vision is to…"
-            value={profile.vision} onChange={e => set("vision", e.target.value)}
-            aria-label="Company vision" rows={4} />
-        </section>
-
-        {/* 9 · Mission */}
-        <section className="station" aria-labelledby="s9">
-          <h2 id="s9"><span className="station-icon" aria-hidden="true">🎯</span>9 · Mission</h2>
-          <textarea className="mission-field" placeholder="Our mission is to…"
-            value={profile.mission} onChange={e => set("mission", e.target.value)}
-            aria-label="Company mission" rows={4} />
-          <Typewriter text={profile.mission} placeholder="Start typing your mission above — it will appear here…" />
-        </section>
-
-        {/* Forge Complete */}
-        <section className="station complete" aria-labelledby="complete-title">
-          <h2 className="complete-header" id="complete-title">⚡ Forge Complete</h2>
-          <pre className="summary" aria-label="Company profile JSON">{JSON.stringify(profile, null, 2)}</pre>
-          <div className="complete-actions">
-            <button className="forge-btn"
-              onClick={() => { console.log("PROFILE:", profile); console.log(JSON.stringify(profile, null, 2)); }}
-              aria-label="Save profile to console">
-              🔥 Save Profile
-            </button>
-          </div>
-        </section>
-
-      </main>
+        <RightPanel profile={profile} onCreate={create} onSave={saveDraft} />
+      </div>
     </>
   );
 }
